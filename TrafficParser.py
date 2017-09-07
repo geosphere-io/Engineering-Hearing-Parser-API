@@ -4,6 +4,7 @@
 
 import pdftotext
 import Categorizer
+import Geocoder
 
 
 class Proposal:
@@ -12,6 +13,7 @@ class Proposal:
         self.object = "";
         self.description = "";
         self.category = "";
+        self.point = "";
 
 class ProposalMachine:
     ## The Proposal Machine Works as follows:
@@ -31,20 +33,24 @@ class ProposalMachine:
         self.currentProp = [Proposal()];
         self.completedProps = [];
         self.categorizer = Categorizer.Categorizer(training_set)
+        self.geocoder = Geocoder.Geocoder();
     def StringList(self):
         s = [];
         for prop in self.completedProps:
-            if(prop.category is "BLANK"):
                 currentstring = "Action: "+prop.action+"; Category: "+prop.category+"; Object: "+prop.object+"; description:"+prop.description
+                for p in prop.point:
+                    currentstring +=" Points: "+str(p['lat'])+" ,"+str(p['lon'])+" Street: "+p['a_street']+","+p['b_street']
                 s.append(currentstring)
         return s
     def emptyCurrentProposition(self):
+        #Finish processing for parsed items
         for p in self.currentProp:
             self.total +=1
             p.action = p.action.strip()
             p.object = p.object.strip()
             p.description = p.description.strip()
-            p.category = self.categorizer.categorize(p.object)
+            p.category = self.categorizer.categorize(p.object)## uses Categorizer to do category
+            p.point = self.geocoder.geocode(p.description)## uses geocoder to do geocoding.
             if(not p.category is "BLANK"):
                 self.categorized +=1
             self.completedProps.append(p);
@@ -97,8 +103,15 @@ class ProposalMachine:
 
 
 def main():
-    text = pdftotext.convert_pdf_to_txt("Engineering_Public_Hearing_example.pdf")
-    sections = text.split("\n")
+    ##for testing, check if the text output already exists
+    try:
+        f = open('eg_out','r')
+    except FileNotFoundError: ##if not, do conversion
+        text = pdftotext.convert_pdf_to_txt("Engineering_Public_Hearing_example.pdf")
+        sections = text.split("\n")
+    else:
+        sections = [line.rstrip('\n') for line in f]
+
     pmachine = ProposalMachine("Resolution-Detail-of-08_02_2017.csv")
     #print(str(pmachine.categorizer.reference_dict))
     for sect in sections:
@@ -106,7 +119,6 @@ def main():
             pmachine.process(sect)
     for p in pmachine.StringList():
         print(p+"\n")
-    print("categorized: "+str(pmachine.categorized)+"/"+str(pmachine.total))
 
 if __name__ == '__main__':
     main()
